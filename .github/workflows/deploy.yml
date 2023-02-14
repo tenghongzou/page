@@ -21,6 +21,7 @@ jobs:
         git config --local user.name "GitHub Action"
         git status
         git remote add origin https://$MY_SECRET@github.com/$GITHUB_REPOSITORY.git
+        git checkout -b gh-pages
         git add --all
         git commit -m "deploy to Github pages"
     - name: Push to gh-pages
