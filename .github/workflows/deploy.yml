@@ -10,7 +10,7 @@ jobs:
     name: Build and deploy gh-pages
     env:
       MY_SECRET   : ${{secrets.commit_secret}}
-      PUBLISH_DIR : .vuepress/dist
+      PUBLISH_DIR : ./
     runs-on: ubuntu-latest
     strategy:
       matrix:
