@@ -7,6 +7,8 @@ on:
 
 jobs:
   build:
+    env:
+      MY_SECRET   : ${{secrets.commit_secret}}
     runs-on: ubuntu-latest
 
     steps:
@@ -17,8 +19,13 @@ jobs:
       run: |
         git config --global user.email "you@example.com"
         git config --global user.name "Your Name"
-
+        git status
+        git remote add origin https://$MY_SECRET@github.com/$GITHUB_REPOSITORY.git
+        git add --all
+        git commit -m "deploy to Github pages"
     - name: Push to gh-pages
-      run: |
-        git checkout -b gh-pages
-        git push -f origin gh-pages
+      uses: ad-m/github-push-action@master
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        branch: 'gh-pages'
+        force: true
