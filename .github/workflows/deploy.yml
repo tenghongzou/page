@@ -1,0 +1,22 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  CI: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Build and deploy
+      run: echo "Deploying to GitHub Pages" && cp index.html dist/ && npx gh-pages -d dist
+      env:
+        ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
