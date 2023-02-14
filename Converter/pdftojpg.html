@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>PDF to JPG Converter</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.7.570/pdf.js"></script>
+  </head>
+  <body>
+    <h1>PDF to JPG Converter</h1>
+    <input type="file" id="pdf-file" accept="application/pdf">
+    <br>
+    <br>
+    <progress id="conversion-progress" value="0" max="100"></progress>
+    <br>
+    <br>
+    <div id="images"></div>
+
+    <script>
+      const pdfFileInput = document.getElementById('pdf-file');
+      const conversionProgress = document.getElementById('conversion-progress');
+      const imagesContainer = document.getElementById('images');
+
+      pdfFileInput.addEventListener('change', async () => {
+        conversionProgress.value = 0;
+        imagesContainer.innerHTML = '';
+
+        if (pdfFileInput.files.length === 0) {
+          return;
+        }
+
+        const pdfFile = pdfFileInput.files[0];
+        const loadingTask = pdfjsLib.getDocument(pdfFile);
+
+        loadingTask.onProgress = ({ loaded, total }) => {
+          conversionProgress.value = (loaded / total) * 100;
+        };
+
+        const pdfDocument = await loadingTask.promise;
+
+        conversionProgress.value = 100;
+
+        const images = [];
+        for (let i = 0; i < pdfDocument.numPages; i++) {
+          const page = await pdfDocument.getPage(i + 1);
+          const viewport = page.getViewport({ scale: 1 });
+          const canvas = document.createElement('canvas');
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          const context = canvas.getContext('2d');
+          const renderTask = page.render({ canvasContext: context, viewport });
+          await renderTask.promise;
+          images.push(canvas.toDataURL('image/jpeg'));
+        }
+
+        images.forEach((image) => {
+          const img = document.createElement('img');
+          img.src = image;
+          imagesContainer.appendChild(img);
+        });
+      });
+    </script>
+  </body>
+</html>
