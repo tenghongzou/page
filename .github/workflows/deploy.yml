@@ -10,14 +10,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
+    - name: Checkout Code
       uses: actions/checkout@v2
 
-    - name: Push to another branch
+    - name: Configure Git User
       run: |
-        git config --global user.email "action@github.com"
-        git config --global user.name "GitHub Action"
+        git config --global user.email "you@example.com"
+        git config --global user.name "Your Name"
+
+    - name: Push to gh-pages
+      run: |
         git checkout -b gh-pages
-        git add .
-        git commit -m "Auto push to gh-pages branch"
-        git push -u origin gh-pages
+        git push -f origin gh-pages
