@@ -7,43 +7,17 @@ on:
 
 jobs:
   build:
-    name: Build and deploy gh-pages
-    env:
-      MY_SECRET   : ${{secrets.commit_secret}}
-      PUBLISH_DIR : ./
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [10.x]
 
     steps:
-    # - uses: actions/checkout@v2
-    # - name: Use Node.js ${{ matrix.node-version }}
-    #   uses: actions/setup-node@v1
-    #   with:
-    #     node-version: ${{ matrix.node-version }}
-    # - uses: borales/actions-yarn@v2.0.0
-    #   with:
-    #     cmd: install # will run `yarn install` command
-    # - uses: borales/actions-yarn@v2.0.0
-    #   with:
-    #     cmd: build # will run `yarn build` command
-    - name: Commit files
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Push to another branch
       run: |
-        echo ${{secrets.DEPLOY_PASSWORD}} | sudo -S chown -R $USER:$USER $PUBLISH_DIR
-        cd $PUBLISH_DIR
-        git init
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git status
-        git remote add origin https://$MY_SECRET@github.com/$GITHUB_REPOSITORY.git
+        git config --global user.email "action@github.com"
+        git config --global user.name "GitHub Action"
         git checkout -b gh-pages
-        git add --all
-        git commit -m "deploy to Github pages"
-    - name: Push changes
-      uses: ad-m/github-push-action@master
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        branch: 'gh-pages'
-        force: true
-        directory: '.vuepress/dist'
+        git add .
+        git commit -m "Auto push to gh-pages branch"
+        git push -u origin gh-pages
