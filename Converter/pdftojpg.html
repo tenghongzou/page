@@ -1,40 +1,135 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-Hant">
   <head>
-    <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@2.6.367/build/pdf.min.js"></script>
-    <script>
-      const PDFJS = window['pdfjs-dist/build/pdf'];
-      PDFJS.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@2.6.367/build/pdf.worker.min.js';
-      
-      async function convertPDFToJPG(pdfURL) {
-        const loadingTask = PDFJS.getDocument(pdfURL);
-        const pdf = await loadingTask.promise;
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PDF 轉 JPG</title>
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 960px; margin: 0 auto; padding: 16px; }
+      .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 16px; }
+      #status { color: #555; }
+      .page { margin-bottom: 24px; }
+      .page img { max-width: 100%; border: 1px solid #ddd; display: block; }
+    </style>
+  </head>
+  <body>
+    <h1>PDF 轉 JPG</h1>
+    <p>檔案只在你的瀏覽器中處理，不會上傳到任何伺服器。</p>
+
+    <div class="controls">
+      <input type="file" id="file" accept="application/pdf" />
+      <label>
+        解析度
+        <select id="scale">
+          <option value="1">1x（約 72 DPI）</option>
+          <option value="2" selected>2x（約 144 DPI）</option>
+          <option value="3">3x（約 216 DPI）</option>
+        </select>
+      </label>
+      <label>
+        品質
+        <input type="number" id="quality" min="0.1" max="1" step="0.05" value="0.9" />
+      </label>
+      <button id="downloadAll" disabled>全部下載</button>
+      <span id="status"></span>
+    </div>
+
+    <div id="output"></div>
+
+    <script type="module">
+      import * as pdfjsLib from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs';
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs';
+
+      const fileInput = document.getElementById('file');
+      const scaleSelect = document.getElementById('scale');
+      const qualityInput = document.getElementById('quality');
+      const downloadAllBtn = document.getElementById('downloadAll');
+      const statusEl = document.getElementById('status');
+      const output = document.getElementById('output');
+
+      let objectURLs = [];
+
+      function reset() {
+        objectURLs.forEach((url) => URL.revokeObjectURL(url));
+        objectURLs = [];
+        output.innerHTML = '';
+        downloadAllBtn.disabled = true;
+      }
+
+      function canvasToJpeg(canvas, quality) {
+        return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+      }
+
+      async function convertPDFToJPG(file) {
+        reset();
+        const baseName = file.name.replace(/\.pdf$/i, '');
+        const scale = Number(scaleSelect.value);
+        const quality = Number(qualityInput.value);
+
+        const data = new Uint8Array(await file.arrayBuffer());
+        const pdf = await pdfjsLib.getDocument({ data, isEvalSupported: false }).promise;
         const pageNumbers = pdf.numPages;
 
         for (let i = 1; i <= pageNumbers; i++) {
+          statusEl.textContent = `轉換中 ${i} / ${pageNumbers}…`;
           const page = await pdf.getPage(i);
-          const viewport = page.getViewport({ scale: 1 });
+          const viewport = page.getViewport({ scale });
           const canvas = document.createElement('canvas');
           const context = canvas.getContext('2d');
-          canvas.height = viewport.height;
-          canvas.width = viewport.width;
+          canvas.height = Math.floor(viewport.height);
+          canvas.width = Math.floor(viewport.width);
 
-          const renderTask = page.render({
-            canvasContext: context,
-            viewport: viewport
-          });
-          await renderTask.promise;
+          // JPG 不支援透明，先鋪白底避免透明區域變黑
+          context.fillStyle = '#fff';
+          context.fillRect(0, 0, canvas.width, canvas.height);
 
+          await page.render({ canvasContext: context, viewport }).promise;
+
+          const blob = await canvasToJpeg(canvas, quality);
+          const url = URL.createObjectURL(blob);
+          objectURLs.push(url);
+          page.cleanup();
+
+          const fileName = `${baseName}-${String(i).padStart(3, '0')}.jpg`;
+          const wrapper = document.createElement('div');
+          wrapper.className = 'page';
           const img = document.createElement('img');
-          img.src = canvas.toDataURL();
-          document.body.appendChild(img);
+          img.src = url;
+          img.alt = `第 ${i} 頁`;
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = fileName;
+          link.textContent = `下載 ${fileName}`;
+          wrapper.append(img, link);
+          output.appendChild(wrapper);
         }
+
+        await pdf.destroy();
+        statusEl.textContent = `完成，共 ${pageNumbers} 頁`;
+        downloadAllBtn.disabled = false;
       }
+
+      fileInput.addEventListener('change', async () => {
+        const file = fileInput.files[0];
+        if (!file) return;
+        fileInput.disabled = true;
+        try {
+          await convertPDFToJPG(file);
+        } catch (err) {
+          console.error(err);
+          statusEl.textContent = `轉換失敗：${err.message}`;
+        } finally {
+          fileInput.disabled = false;
+        }
+      });
+
+      downloadAllBtn.addEventListener('click', async () => {
+        for (const link of output.querySelectorAll('a[download]')) {
+          link.click();
+          // 間隔一下，避免瀏覽器擋掉連續下載
+          await new Promise((r) => setTimeout(r, 300));
+        }
+      });
     </script>
-  </head>
-  <body>
-    <button onclick="convertPDFToJPG('https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf')">
-      Convert PDF to JPG
-    </button>
   </body>
 </html>
