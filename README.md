@@ -56,4 +56,6 @@ python3 -m http.server 8000
 
 ### 網域與 HTTPS
 
-`page.pervive.cc` 的 DNS 由 Cloudflare 代理，HTTPS 憑證由 Cloudflare 提供；HTTP 轉 HTTPS 的強制導向需在 Cloudflare 的「Always Use HTTPS」設定。
+- DNS 由 Cloudflare 管理：`page` 為 CNAME → `tenghongzou.github.io`，**必須維持「僅 DNS」（灰色雲朵）**
+- HTTPS 憑證由 GitHub Pages 自動申請（Let's Encrypt）並續期，已開啟「Enforce HTTPS」
+- 若改回 Cloudflare Proxy，GitHub 將無法續期憑證
