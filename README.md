@@ -8,18 +8,25 @@
 
 路徑：[`Converter/pdftojpg.html`](Converter/pdftojpg.html)
 
-- 選擇本機 PDF，逐頁轉成 JPG 或 PNG
-- 可調解析度（1x / 2x / 3x，約 72 / 144 / 216 DPI）與 JPG 品質
-- 每頁可單獨下載，也可一次全部下載
+- 點擊或拖放選擇本機 PDF，逐頁轉成 JPG 或 PNG，顯示縮圖格線與進度，可隨時取消
+- 可調解析度（1x / 2x / 3x，約 72 / 144 / 216 DPI）與 JPG 品質；改設定後可一鍵重新轉換
+- 每頁可單獨下載，也可勾選多頁打包成 ZIP 下載
+- 單頁超過約 1600 萬像素時自動降低解析度（避免 iOS Safari 的 canvas 上限）
+- 支援深色模式、鍵盤操作與螢幕閱讀器
 - **檔案只在瀏覽器中處理，不會上傳到任何伺服器**
 
-使用 [PDF.js](https://github.com/mozilla/pdf.js)（`pdfjs-dist@4.10.38`，透過 jsDelivr CDN 載入）。
+使用的函式庫（透過 jsDelivr CDN 載入）：
+
+- [PDF.js](https://github.com/mozilla/pdf.js) `pdfjs-dist@4.10.38`：渲染 PDF。使用 `intent: 'print'`，切換到其他分頁時轉換不會暫停
+- [fflate](https://github.com/101arrowz/fflate) `0.8.3`：打包 ZIP（不壓縮，速度最快）
 
 ## 專案結構
 
 ```
 .
-├── index.html                  # 首頁，工具連結
+├── index.html                  # 首頁，工具卡片
+├── assets/
+│   └── style.css               # 共用樣式與 design tokens（含深色模式）
 ├── Converter/
 │   └── pdftojpg.html           # PDF 轉圖片
 ├── CNAME                       # 自訂網域 page.pervive.cc
@@ -50,7 +57,7 @@ python3 -m http.server 8000
 
 推送到 `master` **不會**部署，`master` 為開發分支。
 
-部署時會把 `index.html`、`CNAME`、`Converter/` 複製到 `dist/` 後發佈。**新增頁面或目錄時，記得同步修改 `deploy.yml` 的 Build 步驟。**
+部署時會把 `index.html`、`CNAME`、`assets/`、`Converter/` 複製到 `dist/` 後發佈。**新增頁面或目錄時，記得同步修改 `deploy.yml` 的 Build 步驟。**
 
 `github-pages` environment 只允許 `prod` 分支與 `v*` tag 部署。
 
