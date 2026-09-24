@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>PDF 轉 JPG</title>
+    <title>PDF 轉圖片</title>
     <style>
       body { font-family: system-ui, sans-serif; max-width: 960px; margin: 0 auto; padding: 16px; }
       .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 16px; }
@@ -13,11 +13,18 @@
     </style>
   </head>
   <body>
-    <h1>PDF 轉 JPG</h1>
+    <h1>PDF 轉圖片（JPG / PNG）</h1>
     <p>檔案只在你的瀏覽器中處理，不會上傳到任何伺服器。</p>
 
     <div class="controls">
       <input type="file" id="file" accept="application/pdf" />
+      <label>
+        格式
+        <select id="format">
+          <option value="jpg" selected>JPG</option>
+          <option value="png">PNG</option>
+        </select>
+      </label>
       <label>
         解析度
         <select id="scale">
@@ -41,6 +48,7 @@
       pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs';
 
       const fileInput = document.getElementById('file');
+      const formatSelect = document.getElementById('format');
       const scaleSelect = document.getElementById('scale');
       const qualityInput = document.getElementById('quality');
       const downloadAllBtn = document.getElementById('downloadAll');
@@ -56,15 +64,28 @@
         downloadAllBtn.disabled = true;
       }
 
-      function canvasToJpeg(canvas, quality) {
-        return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+      const FORMATS = {
+        jpg: { mime: 'image/jpeg', ext: 'jpg' },
+        png: { mime: 'image/png', ext: 'png' },
+      };
+
+      function canvasToBlob(canvas, mime, quality) {
+        return new Promise((resolve) => canvas.toBlob(resolve, mime, quality));
       }
 
-      async function convertPDFToJPG(file) {
+      // PNG 是無損格式，品質設定只對 JPG 有效
+      function syncQualityInput() {
+        qualityInput.disabled = formatSelect.value !== 'jpg';
+      }
+      formatSelect.addEventListener('change', syncQualityInput);
+      syncQualityInput();
+
+      async function convertPDF(file) {
         reset();
         const baseName = file.name.replace(/\.pdf$/i, '');
         const scale = Number(scaleSelect.value);
         const quality = Number(qualityInput.value);
+        const format = FORMATS[formatSelect.value];
 
         const data = new Uint8Array(await file.arrayBuffer());
         const pdf = await pdfjsLib.getDocument({ data, isEvalSupported: false }).promise;
@@ -79,18 +100,18 @@
           canvas.height = Math.floor(viewport.height);
           canvas.width = Math.floor(viewport.width);
 
-          // JPG 不支援透明，先鋪白底避免透明區域變黑
+          // 先鋪白底：JPG 不支援透明，PNG 也保持和 PDF 檢視器一致的白底
           context.fillStyle = '#fff';
           context.fillRect(0, 0, canvas.width, canvas.height);
 
           await page.render({ canvasContext: context, viewport }).promise;
 
-          const blob = await canvasToJpeg(canvas, quality);
+          const blob = await canvasToBlob(canvas, format.mime, quality);
           const url = URL.createObjectURL(blob);
           objectURLs.push(url);
           page.cleanup();
 
-          const fileName = `${baseName}-${String(i).padStart(3, '0')}.jpg`;
+          const fileName = `${baseName}-${String(i).padStart(3, '0')}.${format.ext}`;
           const wrapper = document.createElement('div');
           wrapper.className = 'page';
           const img = document.createElement('img');
@@ -114,7 +135,7 @@
         if (!file) return;
         fileInput.disabled = true;
         try {
-          await convertPDFToJPG(file);
+          await convertPDF(file);
         } catch (err) {
           console.error(err);
           statusEl.textContent = `轉換失敗：${err.message}`;
