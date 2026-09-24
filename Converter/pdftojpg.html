@@ -3,154 +3,409 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>PDF 轉圖片</title>
-    <style>
-      body { font-family: system-ui, sans-serif; max-width: 960px; margin: 0 auto; padding: 16px; }
-      .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 16px; }
-      #status { color: #555; }
-      .page { margin-bottom: 24px; }
-      .page img { max-width: 100%; border: 1px solid #ddd; display: block; }
-    </style>
+    <title>PDF 轉圖片（JPG / PNG）</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../assets/style.css" />
   </head>
   <body>
-    <h1>PDF 轉圖片（JPG / PNG）</h1>
-    <p>檔案只在你的瀏覽器中處理，不會上傳到任何伺服器。</p>
+    <main class="wrap">
+      <a class="back" href="../">← 所有工具</a>
+      <h1>PDF 轉圖片</h1>
+      <p class="lede">把 PDF 逐頁轉成 JPG 或 PNG，可單頁下載，或勾選多頁打包成 ZIP。</p>
+      <p class="badge">本機處理・不上傳：檔案只在你的瀏覽器中轉換</p>
 
-    <div class="controls">
-      <input type="file" id="file" accept="application/pdf" />
-      <label>
-        格式
-        <select id="format">
-          <option value="jpg" selected>JPG</option>
-          <option value="png">PNG</option>
-        </select>
-      </label>
-      <label>
-        解析度
-        <select id="scale">
-          <option value="1">1x（約 72 DPI）</option>
-          <option value="2" selected>2x（約 144 DPI）</option>
-          <option value="3">3x（約 216 DPI）</option>
-        </select>
-      </label>
-      <label>
-        品質
-        <input type="number" id="quality" min="0.1" max="1" step="0.05" value="0.9" />
-      </label>
-      <button id="downloadAll" disabled>全部下載</button>
-      <span id="status"></span>
-    </div>
+      <section class="controls" aria-label="轉換設定">
+        <label class="field">
+          <span>格式</span>
+          <select id="format">
+            <option value="jpg" selected>JPG</option>
+            <option value="png">PNG</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>解析度</span>
+          <select id="scale">
+            <option value="1">1x（約 72 DPI）</option>
+            <option value="2" selected>2x（約 144 DPI）</option>
+            <option value="3">3x（約 216 DPI）</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>JPG 品質</span>
+          <input type="number" id="quality" min="0.1" max="1" step="0.05" value="0.9" aria-describedby="quality-note" />
+        </label>
+        <span class="field-note" id="quality-note" hidden>PNG 為無損格式，不使用品質設定</span>
+      </section>
 
-    <div id="output"></div>
+      <label class="drop" id="drop">
+        <input type="file" id="file" class="visually-hidden" accept="application/pdf,.pdf" aria-describedby="drop-hint" />
+        <strong>選擇 PDF 檔案</strong>
+        <small id="drop-hint">或把檔案拖放到這裡</small>
+        <small class="file-name" id="fileName"></small>
+      </label>
+
+      <div class="notice" id="reconvertBar" hidden>
+        <span id="reconvertMsg">設定已變更，目前的結果仍是舊設定。</span>
+        <button type="button" class="btn" id="reconvert">套用設定並重新轉換</button>
+      </div>
+
+      <div class="progress" id="progress" hidden>
+        <div class="progress__label">
+          <span id="progLabel">轉換進度</span>
+          <span class="progress__count" id="progCount">0 / 0</span>
+        </div>
+        <progress class="bar" id="prog" max="1" value="0" aria-labelledby="progLabel"></progress>
+        <button type="button" class="btn btn--ghost" id="cancel">取消</button>
+      </div>
+      <p class="status" id="status" role="status" aria-live="polite"></p>
+      <p class="error" id="error" role="alert"></p>
+
+      <section class="results" id="resultSection" hidden>
+        <div class="results-head">
+          <h2 id="results" tabindex="-1">轉換結果</h2>
+          <div class="results-actions">
+            <label class="check"><input type="checkbox" id="selectAll" checked /> 全選</label>
+            <button type="button" class="btn" id="downloadZip" aria-describedby="zipNote">下載所選（ZIP）</button>
+            <span class="note" id="zipNote"></span>
+          </div>
+        </div>
+        <ul class="grid" id="output" aria-labelledby="results"></ul>
+      </section>
+    </main>
 
     <script type="module">
       import * as pdfjsLib from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs';
+      import { zipSync } from 'https://cdn.jsdelivr.net/npm/fflate@0.8.3/esm/browser.js';
       pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs';
 
-      const fileInput = document.getElementById('file');
-      const formatSelect = document.getElementById('format');
-      const scaleSelect = document.getElementById('scale');
-      const qualityInput = document.getElementById('quality');
-      const downloadAllBtn = document.getElementById('downloadAll');
-      const statusEl = document.getElementById('status');
-      const output = document.getElementById('output');
-
-      let objectURLs = [];
-
-      function reset() {
-        objectURLs.forEach((url) => URL.revokeObjectURL(url));
-        objectURLs = [];
-        output.innerHTML = '';
-        downloadAllBtn.disabled = true;
-      }
+      const $ = (id) => document.getElementById(id);
+      const fileInput = $('file');
+      const drop = $('drop');
+      const fileNameEl = $('fileName');
+      const formatSelect = $('format');
+      const scaleSelect = $('scale');
+      const qualityInput = $('quality');
+      const qualityNote = $('quality-note');
+      const reconvertBar = $('reconvertBar');
+      const reconvertMsg = $('reconvertMsg');
+      const progressEl = $('progress');
+      const progBar = $('prog');
+      const progCount = $('progCount');
+      const statusEl = $('status');
+      const errorEl = $('error');
+      const resultSection = $('resultSection');
+      const resultsHeading = $('results');
+      const selectAll = $('selectAll');
+      const downloadZipBtn = $('downloadZip');
+      const zipNote = $('zipNote');
+      const output = $('output');
 
       const FORMATS = {
-        jpg: { mime: 'image/jpeg', ext: 'jpg' },
-        png: { mime: 'image/png', ext: 'png' },
+        jpg: { mime: 'image/jpeg', ext: 'jpg', label: 'JPG' },
+        png: { mime: 'image/png', ext: 'png', label: 'PNG' },
       };
+      // iOS Safari 的 canvas 上限約 1677 萬像素，超過會畫出空白
+      const MAX_PIXELS = 16_000_000;
 
-      function canvasToBlob(canvas, mime, quality) {
-        return new Promise((resolve) => canvas.toBlob(resolve, mime, quality));
+      let pdfBytes = null;
+      let baseName = '';
+      let results = [];
+      let runId = 0;
+      let busy = false;
+      let currentRender = null;
+      let lastSettingsKey = '';
+
+      const settingsKey = () => `${formatSelect.value}|${scaleSelect.value}|${qualityInput.value}`;
+
+      function formatSize(bytes) {
+        if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+        return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
       }
 
-      // PNG 是無損格式，品質設定只對 JPG 有效
+      function showError(message) {
+        errorEl.textContent = message;
+      }
+
+      function describeError(err) {
+        switch (err?.name) {
+          case 'PasswordException':
+            return '這個 PDF 有密碼保護，目前無法轉換。';
+          case 'InvalidPDFException':
+            return '檔案損毀或不是有效的 PDF。';
+          case 'MissingPDFException':
+            return '讀不到檔案內容，請重新選擇檔案。';
+          default:
+            return `轉換失敗：${err?.message || '未知錯誤'}`;
+        }
+      }
+
+      function clearResults() {
+        results.forEach((r) => URL.revokeObjectURL(r.url));
+        results = [];
+        output.innerHTML = '';
+        resultSection.hidden = true;
+      }
+
       function syncQualityInput() {
-        qualityInput.disabled = formatSelect.value !== 'jpg';
+        const isPng = formatSelect.value !== 'jpg';
+        qualityInput.disabled = isPng;
+        qualityNote.hidden = !isPng;
       }
-      formatSelect.addEventListener('change', syncQualityInput);
-      syncQualityInput();
 
-      async function convertPDF(file) {
-        reset();
-        const baseName = file.name.replace(/\.pdf$/i, '');
+      function syncReconvertBar() {
+        const stale = !busy && pdfBytes && results.length > 0 && settingsKey() !== lastSettingsKey;
+        if (stale) reconvertMsg.textContent = '設定已變更，目前的結果仍是舊設定。';
+        reconvertBar.hidden = !stale;
+      }
+
+      function selectedResults() {
+        return results.filter((r) => r.checkbox.checked);
+      }
+
+      function syncSelection() {
+        const selected = selectedResults();
+        selectAll.checked = selected.length === results.length && results.length > 0;
+        selectAll.indeterminate = selected.length > 0 && selected.length < results.length;
+        downloadZipBtn.disabled = busy || selected.length === 0;
+        downloadZipBtn.textContent = `下載所選（${selected.length} 頁，ZIP）`;
+        const total = selected.reduce((sum, r) => sum + r.blob.size, 0);
+        zipNote.textContent = selected.length ? `約 ${formatSize(total)}` : '未選取任何頁面';
+      }
+
+      function addCard(result, format) {
+        const li = document.createElement('li');
+        li.className = 'card';
+        li.innerHTML = `
+          <figure><img alt="" loading="lazy" /></figure>
+          <div class="meta">
+            <label class="check"><input type="checkbox" checked /> 第 ${result.page} 頁</label>
+            <a class="btn btn--ghost" aria-label="下載第 ${result.page} 頁（${format.label}）">下載</a>
+          </div>`;
+        li.querySelector('img').src = result.url;
+        const link = li.querySelector('a');
+        link.href = result.url;
+        link.download = result.name;
+        result.checkbox = li.querySelector('input');
+        result.checkbox.addEventListener('change', syncSelection);
+        output.appendChild(li);
+      }
+
+      function setProgress(done, total) {
+        progBar.max = total;
+        progBar.value = done;
+        progCount.textContent = `${done} / ${total}`;
+      }
+
+      async function renderPage(pdf, pageNumber, format, scale, quality) {
+        const page = await pdf.getPage(pageNumber);
+        let viewport = page.getViewport({ scale });
+        let downscaled = false;
+        const pixels = viewport.width * viewport.height;
+        if (pixels > MAX_PIXELS) {
+          viewport = page.getViewport({ scale: scale * Math.sqrt(MAX_PIXELS / pixels) });
+          downscaled = true;
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.floor(viewport.width);
+        canvas.height = Math.floor(viewport.height);
+        const context = canvas.getContext('2d');
+        // 先鋪白底：JPG 不支援透明，PNG 也保持和 PDF 檢視器一致的白底
+        context.fillStyle = '#fff';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+
+        try {
+          // intent: 'print' 不走 requestAnimationFrame，切到其他分頁時轉換才不會暫停；
+          // 匯出圖片本來就接近「列印」的語意（依 PDF 的列印設定呈現註解）
+          currentRender = page.render({ canvasContext: context, viewport, intent: 'print' });
+          await currentRender.promise;
+          const blob = await new Promise((resolve) => canvas.toBlob(resolve, format.mime, quality));
+          return { blob, downscaled };
+        } finally {
+          currentRender = null;
+          // 立即釋放 canvas 記憶體，多頁 PDF 才不會把分頁撐爆
+          canvas.width = canvas.height = 0;
+          page.cleanup();
+        }
+      }
+
+      async function convert() {
+        const id = ++runId;
+        const format = FORMATS[formatSelect.value];
         const scale = Number(scaleSelect.value);
         const quality = Number(qualityInput.value);
-        const format = FORMATS[formatSelect.value];
+        const key = settingsKey();
 
-        const data = new Uint8Array(await file.arrayBuffer());
-        const pdf = await pdfjsLib.getDocument({ data, isEvalSupported: false }).promise;
-        const pageNumbers = pdf.numPages;
+        busy = true;
+        clearResults();
+        showError('');
+        reconvertBar.hidden = true;
+        progressEl.hidden = false;
+        setProgress(0, 1);
+        statusEl.textContent = '正在讀取 PDF…';
 
-        for (let i = 1; i <= pageNumbers; i++) {
-          statusEl.textContent = `轉換中 ${i} / ${pageNumbers}…`;
-          const page = await pdf.getPage(i);
-          const viewport = page.getViewport({ scale });
-          const canvas = document.createElement('canvas');
-          const context = canvas.getContext('2d');
-          canvas.height = Math.floor(viewport.height);
-          canvas.width = Math.floor(viewport.width);
+        let pdf = null;
+        let anyDownscaled = false;
+        try {
+          pdf = await pdfjsLib.getDocument({ data: pdfBytes.slice(), isEvalSupported: false }).promise;
+          if (id !== runId) return;
+          const total = pdf.numPages;
+          setProgress(0, total);
+          statusEl.textContent = `開始轉換，共 ${total} 頁`;
+          resultsHeading.textContent = `轉換中（0 / ${total} 頁）`;
+          resultSection.hidden = false;
+          let lastQuarter = 0;
 
-          // 先鋪白底：JPG 不支援透明，PNG 也保持和 PDF 檢視器一致的白底
-          context.fillStyle = '#fff';
-          context.fillRect(0, 0, canvas.width, canvas.height);
+          for (let i = 1; i <= total; i++) {
+            const { blob, downscaled } = await renderPage(pdf, i, format, scale, quality);
+            if (id !== runId) return;
+            anyDownscaled ||= downscaled;
 
-          await page.render({ canvasContext: context, viewport }).promise;
+            const name = `${baseName}-${String(i).padStart(3, '0')}.${format.ext}`;
+            const result = { page: i, name, blob, url: URL.createObjectURL(blob) };
+            results.push(result);
+            addCard(result, format);
+            setProgress(i, total);
+            resultsHeading.textContent = `轉換中（${i} / ${total} 頁）`;
 
-          const blob = await canvasToBlob(canvas, format.mime, quality);
-          const url = URL.createObjectURL(blob);
-          objectURLs.push(url);
-          page.cleanup();
+            // 只在每 25% 播報一次，避免螢幕閱讀器被洗版
+            const quarter = Math.floor((i / total) * 4);
+            if (quarter > lastQuarter && i < total) {
+              lastQuarter = quarter;
+              statusEl.textContent = `已轉換 ${i} / ${total} 頁`;
+            }
+          }
 
-          const fileName = `${baseName}-${String(i).padStart(3, '0')}.${format.ext}`;
-          const wrapper = document.createElement('div');
-          wrapper.className = 'page';
-          const img = document.createElement('img');
-          img.src = url;
-          img.alt = `第 ${i} 頁`;
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = fileName;
-          link.textContent = `下載 ${fileName}`;
-          wrapper.append(img, link);
-          output.appendChild(wrapper);
+          lastSettingsKey = key;
+          resultsHeading.textContent = `轉換結果（${total} 頁）`;
+          statusEl.textContent =
+            `完成，共 ${total} 頁 ${format.label}` +
+            (anyDownscaled ? '。部分頁面尺寸過大，已自動降低解析度。' : '');
+          busy = false;
+          syncSelection();
+          resultsHeading.focus();
+        } catch (err) {
+          if (id !== runId || err?.name === 'RenderingCancelledException') return;
+          console.error(err);
+          clearResults();
+          statusEl.textContent = '';
+          showError(describeError(err));
+          fileInput.focus();
+        } finally {
+          if (id === runId) {
+            busy = false;
+            progressEl.hidden = true;
+            syncReconvertBar();
+          }
+          pdf?.destroy();
         }
-
-        await pdf.destroy();
-        statusEl.textContent = `完成，共 ${pageNumbers} 頁`;
-        downloadAllBtn.disabled = false;
       }
 
-      fileInput.addEventListener('change', async () => {
-        const file = fileInput.files[0];
+      function cancel() {
+        if (!busy) return;
+        runId++;
+        currentRender?.cancel();
+        busy = false;
+        progressEl.hidden = true;
+        const done = results.length;
+        statusEl.textContent = `已取消，保留已轉換的 ${done} 頁`;
+        resultsHeading.textContent = `轉換結果（已取消，${done} 頁）`;
+        if (done === 0) resultSection.hidden = true;
+        syncSelection();
+        reconvertMsg.textContent = '轉換已取消。';
+        reconvertBar.hidden = false;
+        $('reconvert').focus();
+      }
+
+      async function loadFile(file) {
+        showError('');
         if (!file) return;
-        fileInput.disabled = true;
-        try {
-          await convertPDF(file);
-        } catch (err) {
-          console.error(err);
-          statusEl.textContent = `轉換失敗：${err.message}`;
-        } finally {
-          fileInput.disabled = false;
+        const looksLikePdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+        if (!looksLikePdf) {
+          showError(`「${file.name}」不是 PDF 檔案，請選擇 .pdf 檔。`);
+          return;
         }
+        // 換檔時直接中斷舊的轉換（不走 cancel()，避免焦點被移到即將隱藏的按鈕）
+        runId++;
+        currentRender?.cancel();
+        baseName = file.name.replace(/\.pdf$/i, '');
+        fileNameEl.textContent = `${file.name}（${formatSize(file.size)}）`;
+        pdfBytes = new Uint8Array(await file.arrayBuffer());
+        await convert();
+      }
+
+      function downloadZip() {
+        const selected = selectedResults();
+        if (!selected.length) return;
+        downloadZipBtn.disabled = true;
+        statusEl.textContent = `正在打包 ${selected.length} 頁…`;
+        // 讓狀態文字先畫出來，再進行同步打包
+        setTimeout(async () => {
+          try {
+            const files = {};
+            for (const r of selected) files[r.name] = new Uint8Array(await r.blob.arrayBuffer());
+            // 圖片本身已壓縮，level 0 只打包不壓縮，速度最快
+            const zipped = zipSync(files, { level: 0 });
+            const url = URL.createObjectURL(new Blob([zipped], { type: 'application/zip' }));
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${baseName}.zip`;
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(url), 10_000);
+            statusEl.textContent = `已開始下載 ${baseName}.zip（${selected.length} 頁）`;
+          } catch (err) {
+            console.error(err);
+            showError(`打包失敗：${err.message}`);
+          } finally {
+            syncSelection();
+          }
+        }, 0);
+      }
+
+      fileInput.addEventListener('change', () => {
+        const file = fileInput.files[0];
+        // 清空 value，重新選同一個檔案時才會再次觸發 change
+        fileInput.value = '';
+        loadFile(file);
       });
 
-      downloadAllBtn.addEventListener('click', async () => {
-        for (const link of output.querySelectorAll('a[download]')) {
-          link.click();
-          // 間隔一下，避免瀏覽器擋掉連續下載
-          await new Promise((r) => setTimeout(r, 300));
-        }
+      ['dragenter', 'dragover'].forEach((type) =>
+        drop.addEventListener(type, (e) => {
+          e.preventDefault();
+          drop.classList.add('is-over');
+        })
+      );
+      ['dragleave', 'drop'].forEach((type) =>
+        drop.addEventListener(type, (e) => {
+          if (type === 'dragleave' && drop.contains(e.relatedTarget)) return;
+          drop.classList.remove('is-over');
+        })
+      );
+      drop.addEventListener('drop', (e) => {
+        e.preventDefault();
+        loadFile(e.dataTransfer.files[0]);
       });
+      // 檔案拖到拖放區以外時，避免瀏覽器直接開啟 PDF 離開本頁
+      window.addEventListener('dragover', (e) => e.preventDefault());
+      window.addEventListener('drop', (e) => e.preventDefault());
+
+      [formatSelect, scaleSelect, qualityInput].forEach((el) =>
+        el.addEventListener('change', () => {
+          syncQualityInput();
+          syncReconvertBar();
+        })
+      );
+      $('reconvert').addEventListener('click', () => pdfBytes && convert());
+      $('cancel').addEventListener('click', cancel);
+      selectAll.addEventListener('change', () => {
+        results.forEach((r) => (r.checkbox.checked = selectAll.checked));
+        syncSelection();
+      });
+      downloadZipBtn.addEventListener('click', downloadZip);
+
+      syncQualityInput();
     </script>
   </body>
 </html>

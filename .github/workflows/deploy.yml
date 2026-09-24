@@ -29,7 +29,7 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Build
-      run: cp -r index.html CNAME Converter dist/
+      run: cp -r index.html CNAME assets Converter dist/
 
     - name: Upload artifact
       uses: actions/upload-pages-artifact@v3

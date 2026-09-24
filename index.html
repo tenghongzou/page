@@ -3,9 +3,28 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>工具頁</title>
+<title>瀏覽器小工具</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="./assets/style.css" />
 </head>
 <body>
-<a href="./Converter/pdftojpg.html">PDF 轉圖片（JPG / PNG）</a>
+<main class="wrap">
+  <h1>瀏覽器小工具</h1>
+  <p class="lede">所有工具都在你的瀏覽器中執行，檔案不會上傳到任何伺服器。</p>
+
+  <ul class="tools">
+    <li>
+      <a class="tool" href="./Converter/pdftojpg.html">
+        <span class="tool__tag">PDF → JPG / PNG</span>
+        <span class="tool__title">PDF 轉圖片</span>
+        <span class="tool__desc">逐頁轉成圖片，可選解析度，勾選多頁打包 ZIP 下載。</span>
+      </a>
+    </li>
+  </ul>
+
+  <p class="footer">原始碼：<a href="https://github.com/tenghongzou/page">github.com/tenghongzou/page</a></p>
+</main>
 </body>
 </html>
