@@ -3,20 +3,39 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches:
-      - master
+      - prod
+    tags:
+      - 'v*'
+  workflow_dispatch:
 
-env:
-  CI: true
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
 
-    - name: Build and deploy
-      run: echo "Deploying to GitHub Pages" && cp index.html dist/ && npx gh-pages -d dist
-      env:
-        ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+    - name: Build
+      run: cp -r index.html CNAME Converter dist/
+
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: dist
+
+    - name: Deploy
+      id: deployment
+      uses: actions/deploy-pages@v4
